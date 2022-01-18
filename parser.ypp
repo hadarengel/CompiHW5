@@ -1,0 +1,201 @@
+%{
+    /* Prologue */
+    #include <stdio.h>
+    #include "hw3_output.hpp"
+    #include "parser_utility.hpp"
+    #include "parser.tab.hpp"
+
+    extern int yylineno;
+    extern int yylex();
+    int yyerror(const char* message);
+
+    using namespace output;
+
+
+%}
+
+    /* Declerations Section */
+ 
+
+
+
+    %token    B BOOL VOID INT BYTE STRING CONST TRUE FALSE IF RETURN WHILE BREAK CONTINUE SC COMMA NUM ID
+
+    %right ASSIGN    
+
+    %left OR
+    %left AND
+    %left EQUALOP
+    %nonassoc RELOP 
+    %left ADD
+    %left MULT
+	%right NOT IF
+    %left LPAREN RPAREN LBRACE RBRACE
+    %nonassoc ELSE
+
+
+%%
+    /* Grammer Rules Section */ 
+
+    Program:  Funcs 
+    ; 
+
+    Funcs: /* empty */ {} 
+    | FuncDecl Funcs {}
+    ;
+
+    FuncDecl: RetType ID LPAREN {openScope(false);} Formals RPAREN {addFunc($2.name, $1.type, $5.params_types);} LBRACE Statements RBRACE {closeScope();}
+    ;
+
+    RetType: Type {$$.type = $1.type;} 
+    | VOID {$$.type = "VOID";}
+    ;
+
+    Formals: /* empty */ {$$.params_types = vector<std::string>();}
+    | FormalsList {$$.params_types = $1.params_types;}
+    ;
+
+    FormalsList: FormalDecl {$$.params_types.push_back($1.type);}
+    | FormalDecl COMMA FormalsList 
+        {
+        $$.params_types.push_back($1.type);
+        mergeVectors($$.params_types, $3.params_types);
+        }
+    ;
+
+    FormalDecl: TypeAnnotation Type ID 
+        {
+        addArg($3.name,$2.type, $1.is_const);
+        $$.type = $2.type;
+        }
+    ;
+
+    Statements: Statement {}
+    | Statements Statement {}
+    ;
+
+    Statement: LBRACE {openScope(false);} Statements RBRACE {closeScope();}
+    | TypeAnnotation Type ID SC 
+        {
+        if($1.is_const) output::errorConstDef(yylineno);
+        addVar($3.name, $2.type, $1.is_const);
+        }
+    | TypeAnnotation Type ID ASSIGN Exp SC  
+        {
+        checkValidAssign($2.type, $5.type);
+        addVar($3.name, $2.type, $1.is_const);
+        }
+    | ID ASSIGN Exp SC  
+        {
+        if(checkValidVar($1.name)) output::errorConstMismatch(yylineno);
+        checkValidAssign(typeOfSymbol($1.name),$3.type);
+        }
+    | Call SC {}
+    | RETURN SC {checkRetType("VOID");}
+    | RETURN Exp SC {checkRetType($2.type);}
+    | IF  LPAREN MIfExp RPAREN  MIfStatement 
+    | IF  LPAREN MIfExp RPAREN  MIfStatement ELSE {openScope(false);} Statement {closeScope();}
+    | WHILE LPAREN Exp RPAREN {checkBoolType($3.type); openScope(true);} Statement {closeScope();}
+    | BREAK SC {checkUnexpected("BREAK");}
+    | CONTINUE SC {checkUnexpected("CONTINUE");}
+    ;
+
+    MIfExp: Exp {checkBoolType($1.type); openScope(false); }
+
+    MIfStatement: Statement {closeScope();}
+
+    Call: ID LPAREN ExpList RPAREN {$$.type = checkFuncDecl($1.name, $3.params_types);}
+    | ID LPAREN RPAREN {$$.type = checkFuncDecl($1.name, vector<std::string>());}
+    ;
+
+    ExpList: Exp {$$.params_types.push_back($1.type);}
+    | Exp COMMA ExpList 
+        {
+        $$.params_types.push_back($1.type);
+        mergeVectors($$.params_types,$3.params_types);
+        }
+    ;
+
+    Type: INT {$$.type="INT";}
+    | BYTE {$$.type="BYTE";}
+    | BOOL {$$.type="BOOL";}
+    ;
+
+    TypeAnnotation: /* empty */ {$$.is_const = false;}
+    | CONST {$$.is_const = true;}
+    ; 
+
+    Exp: LPAREN Exp RPAREN {$$.type = $2.type;}
+    | Exp ADD Exp  
+        {
+        $$.type = findBinopType($1.type, $3.type);
+        }
+    | Exp MULT Exp  
+        {
+        $$.type = findBinopType($1.type, $3.type);
+        }
+    | ID
+        {
+        checkValidVar($1.name);
+        $$.type = typeOfSymbol($1.name);
+        }
+    | Call {$$.type = $1.type;}
+    | NUM {$$.type = "INT";}
+    | NUM B {checkOverFlowByte($1.val); $$.type="BYTE";}
+    | STRING {$$.type = "STRING";}
+    | TRUE {$$.type = "BOOL";}
+    | FALSE {$$.type = "BOOL";}
+    | NOT Exp   
+        {
+        checkBoolType($2.type);
+        $$.type = $2.type;
+        }
+    | Exp AND Exp   
+        {
+        checkBoolType($1.type);
+        checkBoolType($3.type);
+        $$.type = $1.type;
+        }
+    | Exp OR Exp    
+        {
+        checkBoolType($1.type);
+        checkBoolType($3.type);
+        $$.type = $1.type;
+        }
+    | Exp RELOP Exp 
+        {
+        checkNumberType($1.type);
+        checkNumberType($3.type);
+        $$.type = "BOOL";
+        }
+    | Exp EQUALOP Exp   
+        {
+        checkNumberType($1.type);
+        checkNumberType($3.type);
+        $$.type = "BOOL";
+        }
+    | LPAREN TypeAnnotation Type RPAREN Exp 
+        {
+        checkValidCast($3.type,$5.type);
+        $$.type = $3.type;
+        } 
+
+
+
+    
+%%
+    /* Epilogue Section */    
+
+    int main()
+    {
+        InitParser();
+        int parse_ret = yyparse();
+        FinishParser();
+        return parse_ret;
+    }
+
+    int yyerror(const char* message){
+        output::errorSyn(yylineno);
+        exit(0);
+    }
+    
