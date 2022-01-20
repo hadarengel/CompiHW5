@@ -2,12 +2,13 @@
     /* Prologue */
     #include <stdio.h>
     #include "hw5_output.hpp"
-    #include "parser_utility.hpp"
+    #include "llvm_compiler.hpp"
     #include "parser.tab.hpp"
 
     extern int yylineno;
     extern int yylex();
     int yyerror(const char* message);
+    Llvm_compiler comp;
 
     using namespace output;
 
@@ -27,8 +28,8 @@
     %left AND
     %left EQUALOP
     %nonassoc RELOP 
-    %left ADD
-    %left MULT
+    %left ADD,SUB
+    %left MULT,DIV
 	%right NOT IF
     %left LPAREN RPAREN LBRACE RBRACE
     %nonassoc ELSE
@@ -87,7 +88,9 @@
         }
     | ID ASSIGN Exp SC  
         {
-        if(checkValidVar($1.name)) output::errorConstMismatch(yylineno);
+        if(checkValidVar($1.name)) {
+            output::errorConstMismatch(yylineno);
+            abortParser(1);}
         checkValidAssign(typeOfSymbol($1.name),$3.type);
         }
     | Call SC {}
@@ -125,12 +128,20 @@
     | CONST {$$.is_const = true;}
     ; 
 
-    Exp: LPAREN Exp RPAREN {$$.type = $2.type;}
+    Exp: LPAREN Exp RPAREN {$$ = $2;}
     | Exp ADD Exp  
+        {
+        $$.type = comp.handle_add($1,$2);
+        }
+    | Exp SUB Exp  
         {
         $$.type = findBinopType($1.type, $3.type);
         }
     | Exp MULT Exp  
+        {
+        $$.type = findBinopType($1.type, $3.type);
+        }
+    | Exp DIV Exp  
         {
         $$.type = findBinopType($1.type, $3.type);
         }
