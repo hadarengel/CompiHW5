@@ -42,15 +42,15 @@ continue                                        return CONTINUE;
 \{                                              return LBRACE;
 \}                                              return RBRACE;
 =                                               return ASSIGN;
-[<>]=?                                          return RELOP;
-[!=]=                                           return EQUALOP; 
+[<>]=?                                          {yylval.data = yytext; return RELOP;}
+[!=]=                                           {yylval.data = yytext; return EQUALOP;} 
 (\+)                                            return ADD;
 (\-)                                            return SUB;
 (\*)                                            return MULT;
 (\/)                                            return DIV;
 \/\/[^\n\r]*[\r|\n|\r\n]?                       ;
-[a-zA-Z][a-zA-Z0-9]*                            {yylval.name = yytext; return ID;}
-0|[1-9][0-9]*                                   {yylval.val = yytext; return NUM;}
+[a-zA-Z][a-zA-Z0-9]*                            {yylval.data = yytext; return ID;}
+0|[1-9][0-9]*                                   {yylval.data = yytext; return NUM;}
 \"([^\n\r\"\\]|\\[rnt"\\])+\"                   return STRING;
 {whitespace}                                    ;
 .                                               {output::errorLex(yylineno); exit(0);}

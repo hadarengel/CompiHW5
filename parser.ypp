@@ -131,35 +131,33 @@
     Exp: LPAREN Exp RPAREN {$$ = $2;}
     | Exp ADD Exp  
         {
-        $$.type = comp.handle_add($1,$2);
+        $$.type = comp.handle_add($1,$3);
         }
     | Exp SUB Exp  
         {
-        $$.type = findBinopType($1.type, $3.type);
+        $$.type = comp.handle_sub($1,$3);
         }
     | Exp MULT Exp  
         {
-        $$.type = findBinopType($1.type, $3.type);
+        $$.type = comp.handle_mul($1,$3);
         }
     | Exp DIV Exp  
         {
-        $$.type = findBinopType($1.type, $3.type);
+        $$.type = comp.handle_div($1,$3);
         }
     | ID
         {
-        checkValidVar($1.name);
-        $$.type = typeOfSymbol($1.name);
+        $$ = comp.handle_var($1.data);
         }
     | Call {$$.type = $1.type;}
-    | NUM {$$.type = "INT";}
-    | NUM B {checkOverFlowByte($1.val); $$.type="BYTE";}
+    | NUM {$$ = comp.handle_literal($1.data,"INT")}
+    | NUM B {$$ = comp.handle_literal($1.data,"BYTE")}
     | STRING {$$.type = "STRING";}
-    | TRUE {$$.type = "BOOL";}
-    | FALSE {$$.type = "BOOL";}
+    | TRUE {$$.data = "1"; $$.type = "BOOL"; $$.is_literal = true;}
+    | FALSE {$$.data = "0"; $$.type = "BOOL"; $$.is_literal = true;}
     | NOT Exp   
         {
-        checkBoolType($2.type);
-        $$.type = $2.type;
+        $$.type = comp.handle_not($2);
         }
     | Exp AND Exp   
         {
@@ -175,20 +173,15 @@
         }
     | Exp RELOP Exp 
         {
-        checkNumberType($1.type);
-        checkNumberType($3.type);
-        $$.type = "BOOL";
+        $$ = comp.handle_relop_equalop($1,$2.data,$3);
         }
     | Exp EQUALOP Exp   
         {
-        checkNumberType($1.type);
-        checkNumberType($3.type);
-        $$.type = "BOOL";
+        $$ = comp.handle_relop_equalop($1,$2.data,$3);
         }
-    | LPAREN TypeAnnotation Type RPAREN Exp 
+    | LPAREN Type RPAREN Exp 
         {
-        checkValidCast($3.type,$5.type);
-        $$.type = $3.type;
+        $$ = comp.handle_cast($1.type,$4)
         } 
 
 

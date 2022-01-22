@@ -30,9 +30,8 @@ class Sym_table::funcType : public Sym_table::sType //class for function symbols
 
 public:
 	
-	std::string ret_type;            /* type of return value                      */
-	std::vector<std::string> params;      /* types of the function parameters          */
-	
+	std::string ret_type;            	/* type of return value                     */
+	std::vector<std::string> params;    /* types of the function parameters     	*/
 
 	funcType(){}
 	funcType(const std::string& n, const std::string& t,  int of, const std::string& rt, const std::vector<std::string>& p): sType(n,t,of) , ret_type(rt), params(p){}
@@ -44,11 +43,13 @@ class Sym_table::varType: public Sym_table::sType // class for variable symbols
 
 public:
 	bool is_const;
-	          
+	bool is_literal;
+
+	std::string ptr_reg; /* holds register name of var pointer on stack, in case of literal will hold the value itself*/
 
 	varType(){}
-	varType(const std::string& n, const std::string& t,  int of, bool is_const_t):
-	 sType(n,t,of), is_const(is_const_t){}
+	varType(const std::string& n, const std::string& t,  int of, bool is_const_t, bool is_literal_t): sType(n,t,of), is_const(is_const_t), is_literal(is_literal_t)
+	{ptr_reg = nullptr;}
 
 	void printSymbol(){output::printID(name, offset, type);}
 };
@@ -174,9 +175,9 @@ void Sym_table::addFunc(const string& name, const string& ret_type, const vector
 }
 
 // Insert variable to symbol table and current scope
-void Sym_table::addVar(const string& name, const string& type, bool is_const) {
+void Sym_table::addVar(const string& name, const string& type, bool is_const,bool is_literal = false) {
 	checkNameAvailable(name);
-    varType* sym_ptr = new varType(name, type, global_offset++, is_const);
+    varType* sym_ptr = new varType(name, type, is_literal ? global_offset : global_offset++, is_const , is_literal);
     symbol_table[name] = sym_ptr;
     stack_scope.back().symbols_list.push_back(name);
 }
@@ -184,10 +185,36 @@ void Sym_table::addVar(const string& name, const string& type, bool is_const) {
 //Insert argoment of function to symbol table and current scope
 void Sym_table::addArg(const string& name, const string& type, bool is_const){
     checkNameAvailable(name);
-    varType* sym_ptr = new varType(name, type, (-(stack_scope.back().symbols_list.size()+1)), is_const);
+    varType* sym_ptr = new varType(name, type, (-(stack_scope.back().symbols_list.size()+1)), is_const, false);
     symbol_table[name] = sym_ptr;
     stack_scope.back().symbols_list.push_back(name);
-    
+}
+
+//Update the register containing the variable, 
+//note: function assuming id is exist and variable
+//		use checkValidVar before before using!
+void Sym_table::updateReg(std::string& id, std::string& reg){
+	varType* var_ptr = (varType*)symbol_table[id];
+	var_ptr->ptr_reg = reg;
+}
+
+//Get the register containing the variable
+//note: function assuming id is exist and variable
+//		use checkValidVar before using!
+std::string& Sym_table::getReg(std::string& id){
+	varType* var_ptr = (varType*)symbol_table[id];
+	return var_ptr->ptr_reg;
+}
+
+//Check if variable is literal
+bool Sym_table::checkLiteral(std::string& id){
+	varType* var_ptr = (varType*)symbol_table[id];
+	return var_ptr->is_literal;
+}
+
+//get Offset of symbol, assume symbol exist
+int Sym_table::getOffset(std::string& name){
+	return symbol_table[name]->offset;
 }
 
 

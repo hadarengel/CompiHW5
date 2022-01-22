@@ -48,10 +48,21 @@ public:
     void addFunc(const std::string& name, const std::string& ret_type,  const std::vector<std::string>& params);
 
     //Insert variable to symbol table and current scope
-    void addVar(const std::string& name, const std::string& type, bool is_const);
+    void addVar(const std::string& name, const std::string& type, bool is_const = false, bool is_literal = false);
 
     //Insert argoment of function to symbol table and current scope
-    void addArg(const std::string& name, const std::string& type, bool is_const);
+    void addArg(const std::string& name, const std::string& type, bool is_const = false);
+
+    //Update the register containing the variable
+    void updateReg(std::string& id, std::string& reg);
+
+    //Get the register containing the variable
+    std::string& getReg(std::string& id);
+
+    //Check if variable is literal
+    bool checkLiteral(std::string& id);  
+
+    int getOffset(std::string& name);
 
     //Check if types are valid in the action
     void checkValidAssign(const std::string& type_1, const std::string& type_2);
@@ -89,7 +100,7 @@ public:
     //destroy parser data and call exit(exit_val)
     void abortParser(int exit_val);
 
-    
+
 };
 
 
