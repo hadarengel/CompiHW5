@@ -58,11 +58,10 @@ class Sym_table::scope // class for scope properties
 {
 	public:
 	int initial_offset;
-	std::vector<std::string> symbols_list;
-	bool is_while_scope;
+	std::vector<std::string> symbols_list;;
 
-	scope(int of, bool isWs = false):
-	initial_offset(of), is_while_scope(isWs){}
+	scope(int of):
+	initial_offset(of){}
 	
 
 };
@@ -78,12 +77,11 @@ Sym_table::Sym_table(bool print_copes_t = false) {
 	stack_scope = vector<scope>();
 	symbol_table = unordered_map<string, sType*>();
     global_offset = BASE__GLOBAL_OFFSET;
-    num_of_while_scopes = 0;
     is_main_exist = false;
 
 	print_scopes = print_scopes;
 
-    openScope(false); //open global scope
+    openScope(); //open global scope
 	
     addFunc("print", "VOID", {"STRING"});
 	addFunc("printi", "VOID", {"INT"});
@@ -124,13 +122,10 @@ void Sym_table::checkNameAvailable(const string& name){
 
 
 //Open new scope
-void Sym_table::openScope(bool isWhile){ 
-    scope sc(global_offset, isWhile);
+void Sym_table::openScope(){ 
+    scope sc(global_offset);
     stack_scope.push_back(sc);
-	if (isWhile)
-	{
-		num_of_while_scopes++;
-	}
+
 	
 }
 
@@ -149,9 +144,7 @@ void Sym_table::closeScope() {
 		symbol_table.erase(symbol_name);
 	}
 	global_offset = sc.initial_offset;
-	if (sc.is_while_scope){
-		--num_of_while_scopes;
-	}
+
 	stack_scope.pop_back();
 }
 
@@ -250,20 +243,6 @@ string Sym_table::typeOfSymbol(const string& name){
 void Sym_table::checkRetType(const string& type) {
 	funcType* func_ptr = (funcType*) symbol_table[stack_scope.front().symbols_list.back()];
 	checkValidAssign(func_ptr->ret_type, type);
-}
-
-
-// Check for unexpected break or continue
-void Sym_table::checkUnexpected(const string& statement) {
-	if (num_of_while_scopes == 0){
-		if(statement == "CONTINUE"){
-            output::errorUnexpectedContinue(yylineno);
-        }
-	    if(statement == "BREAK"){
-            output::errorUnexpectedBreak(yylineno);
-		}
-        abortParser(1);
-	}
 }
 
 //Check if t is bool type

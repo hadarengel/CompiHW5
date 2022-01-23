@@ -79,33 +79,31 @@
     | TypeAnnotation Type ID SC 
         {
         if($1.is_const) output::errorConstDef(yylineno);
-        addVar($3.name, $2.type, $1.is_const);
+        comp.handle_var_decl($2.type,$3.data);
         }
     | TypeAnnotation Type ID ASSIGN Exp SC  
         {
-        checkValidAssign($2.type, $5.type);
-        addVar($3.name, $2.type, $1.is_const);
+        comp.handle_var_decl($1.is_const,$2.type,$3.data,$4);
         }
     | ID ASSIGN Exp SC  
         {
-        if(checkValidVar($1.name)) {
-            output::errorConstMismatch(yylineno);
-            abortParser(1);}
-        checkValidAssign(typeOfSymbol($1.name),$3.type);
+        comp.handle_assign($1.data,$3);
         }
     | Call SC {}
     | RETURN SC {checkRetType("VOID");}
     | RETURN Exp SC {checkRetType($2.type);}
-    | IF  LPAREN MIfExp RPAREN  MIfStatement 
-    | IF  LPAREN MIfExp RPAREN  MIfStatement ELSE {openScope(false);} Statement {closeScope();}
-    | WHILE LPAREN Exp RPAREN {checkBoolType($3.type); openScope(true);} Statement {closeScope();}
-    | BREAK SC {checkUnexpected("BREAK");}
-    | CONTINUE SC {checkUnexpected("CONTINUE");}
+    | IF LPAREN MExp RPAREN  Statement {$$ = comp.end_if($3,$5);}
+    | IF LPAREN MExp RPAREN  Statement MElse Statement {$$ = comp.end_else($3,$5,$6,$7);}
+    | MWhile LPAREN MExp RPAREN Statement {comp.end_while($3,$5);}
+    | BREAK SC {$$ = comp.handle_break();}
+    | CONTINUE SC {comp.handle_continue();}
     ;
 
-    MIfExp: Exp {checkBoolType($1.type); openScope(false); }
+    MExp: Exp {$$ = comp.handle_cond($1);}
 
-    MIfStatement: Statement {closeScope();}
+    MElse: ELSE {$$ = comp.begin_else();}
+
+    MWhile: WHILE {comp.begin_while();}
 
     Call: ID LPAREN ExpList RPAREN {$$.type = checkFuncDecl($1.name, $3.params_types);}
     | ID LPAREN RPAREN {$$.type = checkFuncDecl($1.name, vector<std::string>());}

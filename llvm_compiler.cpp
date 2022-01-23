@@ -6,11 +6,7 @@ extern int yylineno;
 
 
 /*----------- Public Functions -----------*/
-union_class Llvm_compiler::add_label(){
-    union_class ret;
-    ret.label = code_bp.genLabel();
-    return ret;
-}
+
 
 void Llvm_compiler::handle_var_decl(std::string& type, std::string& name){
     symbol_table.addVar(name,type);
@@ -70,6 +66,83 @@ void Llvm_compiler::handle_assign(std::string dest_id, union_class& assign_exp){
         }
     }
     std::string code = "store i32 " + assign_data + " , i32* " + symbol_table.getReg(dest_id);
+    code_bp.emit(code);
+}
+
+union_class Llvm_compiler::begin_else(){
+    std::string code = "br label @";
+    int loc = code_bp.emit(code);
+    symbol_table.closeScope();
+    symbol_table.openScope();
+    union_class else_exp;
+    else_exp.label = code_bp.genLabel();
+    else_exp.nextlist = code_bp.makelist({loc,FIRST});
+    return else_exp;
+}
+
+union_class Llvm_compiler::end_if(union_class& exp, union_class& states){
+    std::string next_label = code_bp.genLabel();
+    code_bp.bpatch(exp.truelist,next_label);
+    union_class res_exp;
+    res_exp.nextlist = states.nextlist;
+    symbol_table.closeScope();
+    return res_exp;
+}
+
+union_class Llvm_compiler::end_else(union_class& exp, union_class& if_states, union_class& else_exp,union_class& else_states){
+    std::string next_label = code_bp.genLabel();
+    code_bp.bpatch(else_exp.nextlist,next_label);
+    code_bp.bpatch(exp.falselist,else_exp.label);
+    union_class res_exp;
+    res_exp.nextlist = code_bp.merge(if_states.nextlist,else_states.nextlist);
+    symbol_table.closeScope();
+    return res_exp;
+}
+
+void Llvm_compiler::begin_while(){
+    std::string w_label = code_bp.genLabel();
+    nested_while_labels.push_back(w_label);
+}
+
+void Llvm_compiler::end_while(union_class& exp, union_class& states){
+    std::string code = "br label %" + nested_while_labels.back();
+    code_bp.emit(code);
+    vector<pair<int,BranchLabelIndex>> next_list = code_bp.merge(exp.falselist,states.nextlist);
+    std::string next_label = code_bp.genLabel();
+    code_bp.bpatch(next_list,next_label);
+    nested_while_labels.pop_back();
+    symbol_table.closeScope();
+}
+
+union_class Llvm_compiler::handle_cond(union_class& exp){
+    union_class res_exp;
+    std::string true_label = add_br_and_label(exp);
+    code_bp.bpatch(exp.truelist,true_label);
+    res_exp.falselist = exp.falselist;
+    symbol_table.openScope();
+    return res_exp;
+}
+
+union_class Llvm_compiler::handle_break(){
+    if (nested_while_labels.empty())
+    {
+        output::errorUnexpectedBreak(yylineno);
+        symbol_table.abortParser(1);
+    }
+    std::string code = "br label @";
+    int loc = code_bp.emit(code);
+    union_class res_state;
+    res_state.nextlist = code_bp.makelist({loc,FIRST});
+    return res_state; 
+}
+
+void Llvm_compiler::handle_continue(){
+    if (nested_while_labels.empty())
+    {
+        output::errorUnexpectedContinue(yylineno);
+        symbol_table.abortParser(1);
+    }
+    std::string code = "br label %" + nested_while_labels.back();
     code_bp.emit(code);
 }
 

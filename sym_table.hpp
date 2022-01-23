@@ -23,7 +23,6 @@ private:
     vector<scope> stack_scope;
     unordered_map<string, sType*> symbol_table;
     int global_offset;
-    int num_of_while_scopes;
     bool is_main_exist;
     bool print_scopes;
 
@@ -39,7 +38,7 @@ public:
     ~Sym_table();
 
     //Open new scope
-    void openScope(bool isWhile);
+    void openScope();
 
     //Close scope and print his symbols
     void closeScope();
@@ -75,9 +74,6 @@ public:
 
     //check if the return type is identical to what was decleared in the function
     void checkRetType(const std::string& type);
-
-    // Check for unexpected break or continue
-    void checkUnexpected(const std::string& unexp);
 
     //Check if t is bool type
     void checkBoolType(const std::string& t);

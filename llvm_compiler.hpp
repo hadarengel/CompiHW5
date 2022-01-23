@@ -34,6 +34,8 @@ private:
     unsigned int string_counter = 0;
     std::string stack_ptr_reg;
 
+    vector<std::string> nested_while_labels;
+
     /*-----Private Functions-----*/
 
 
@@ -59,9 +61,6 @@ public:
     Llvm_compiler();
     ~Llvm_compiler();
 
-    //add label in code
-    //note: use it for generating mid labels in boolean ops and pre labels in loops
-    union_class add_label();
 
     /*------------------------------Statements Handlers-----------------------------------*/
     //Add var name to the symbol table and generate decleration code to the code buffer
@@ -70,6 +69,25 @@ public:
     
     //Generate code for assigning assign_exp data in dest_id variable
     void handle_assign(std::string dest_id, union_class& assign_exp);
+    
+    
+    union_class begin_else();
+    //Backpatch exp truelist to the next block label and closes the if scope, return states nextlist
+    union_class end_if(union_class& exp, union_class& states);
+    //Backpatch exp truelist to the else block label and closes the else scope, return merged if and else states nextlist
+    union_class end_else(union_class& exp, union_class& if_states, union_class& else_exp,union_class& else_states);
+
+    //Generate nested label for while scope
+    void begin_while();
+    //Backpatch exp truelist and states nextlist to the next block label, generate loop jump
+    //and closes the while scope
+    void end_while(union_class& exp, union_class& states);
+    
+    union_class handle_break();
+    void handle_continue();
+
+    union_class handle_cond(union_class& exp);
+
 
     /*-------------------------------- Exp Handlers ------------------------------------*/
 
