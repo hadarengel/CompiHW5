@@ -7,6 +7,36 @@ extern int yylineno;
 
 /*----------- Public Functions -----------*/
 
+Llvm_compiler::Llvm_compiler(){
+    
+    code_bp.emitGlobal("declare i32 @printf(i8*, ...)");
+    code_bp.emitGlobal("declare void @exit(i32)");
+    code_bp.emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
+    code_bp.emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
+    code_bp.emitGlobal("@.div_zero_str = constant [23 x i8] c\"Error division by zero\\00\"");
+    code_bp.emit("define void @printi(i32) {");
+    code_bp.emit("  %spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
+    code_bp.emit("  call i32 (i8*, ...) @printf(i8* %spec_ptr, i32 %0)");
+    code_bp.emit("  ret void");
+    code_bp.emit("}");
+
+    code_bp.emit("define void @print(i8*) {");
+    code_bp.emit("  %spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
+    code_bp.emit("  call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)=");
+    code_bp.emit("  ret void");
+    code_bp.emit("}");
+    
+}
+
+
+
+void Llvm_compiler::openScope(){
+    symbol_table.openScope();
+}
+void Llvm_compiler::closeScope(){
+    symbol_table.closeScope();
+}
+
 
 void Llvm_compiler::handle_var_decl(std::string& type, std::string& name){
     symbol_table.addVar(name,type);
@@ -146,6 +176,30 @@ void Llvm_compiler::handle_continue(){
     code_bp.emit(code);
 }
 
+union_class Llvm_compiler::handle_call(std::string func_id){
+    std::string call_args;
+    vector<std::string> params_types;
+    while(!call_args_list.empty()){
+        union_class arg_exp = call_args_list.back();
+        call_args += typeSize(arg_exp.type) + " " + arg_exp.data + ", ";
+        params_types.push_back(arg_exp.type);
+        call_args_list.pop_back();
+    }
+    if(!call_args.empty()){// delete last ", "
+        call_args.erase(call_args.size() - 2);
+    }
+    union_class call_res;
+    call_res.type = symbol_table.checkFuncDecl(func_id,params_types);
+    std::string code;
+    if(call_res.type != "VOID"){
+        call_res.data = generate_reg();
+        code += call_res.data + " = ";
+    }
+    code += "call " + typeSize(call_res.type) + " @" + func_id + "(" + call_args + ")";
+    code_bp.emit(code);
+    return call_res;
+}
+
 union_class Llvm_compiler::handle_var(std::string var_id){
     bool is_const = symbol_table.checkValidVar(var_id);
     union_class new_exp;
@@ -157,6 +211,10 @@ union_class Llvm_compiler::handle_var(std::string var_id){
         new_exp.data = var_ptr; //var_ptr contain the literal value
     }
     else{
+        int offset = symbol_table.getOffset(var_id);
+        if(offset <0){ 
+            new_exp.data = "%" + to_string(-(1+offset));
+        }
         new_exp.is_literal = false;
         new_exp.data = generate_reg();
         std::string code = new_exp.data + " = load " + typeSize(new_exp.type) + " , i32* " + var_ptr; 
@@ -244,10 +302,22 @@ union_class Llvm_compiler::handle_div(union_class& exp_1, union_class& exp_2){
     std::string data1 = exp_1.data;
     std::string data2 = exp_2.data;
     std::string code;
-    /*--TODO add check div by zero --*/
+    
+    /*------ check div by zero ------*/
+    std::string div_reg = generate_reg();
+    code_bp.emit(div_reg + " = icmp eq i32 0, " + data2);
+    int loc = code_bp.emit("br i1 " + div_reg + ", label @, label @");
 
+    std::string zero_label = code_bp.genLabel();
+    std::string div_str_ptr = generate_reg();
+    code_bp.emit(div_str_ptr + " = " + "getelementptr inbounds [23 x i8], [23 x i8]* @.div_zero_str, i32 0, i32 0");
+    code_bp.emit("call void @print(i8* " + div_str_ptr + ")");
+    code_bp.emit("call void @exit(i32 0)");
 
+    std::string not_zero_label = code_bp.genLabel();
 
+    code_bp.bpatch(code_bp.makelist({loc, FIRST}), zero_label);
+    code_bp.bpatch(code_bp.makelist({loc, SECOND}), not_zero_label);
     /*-------------------------------*/
 
     if(res_exp.type == "INT"){
@@ -395,8 +465,20 @@ union_class Llvm_compiler::handle_string(std::string str) {
     return res_exp;
 }
 
+void Llvm_compiler::add_call_arg(union_class& exp){
+    if(exp.type == "BOOL" && (!exp.is_literal)){
+        exp.data = assign_bool(exp);
+    }
+    call_args_list.push_back(exp);
+}
 
-
+union_class Llvm_compiler::merge_lists(union_class& uni_1, union_class& uni_2){
+    union_class uni_res;
+    uni_res.truelist = code_bp.merge(uni_1.truelist,uni_2.truelist);
+    uni_res.falselist = code_bp.merge(uni_1.falselist,uni_2.falselist);
+    uni_res.nextlist = code_bp.merge(uni_1.nextlist,uni_2.nextlist);
+    return uni_res;
+}
 
 /*----------- Private Functions ----------*/
 
@@ -412,6 +494,9 @@ std::string Llvm_compiler::typeSize(std::string type){
     }
     if(type == "BYTE"){
         return "i8";
+    }
+    if(type == "STRING"){
+        return "i8*";
     }
     return "i32";
 }
@@ -433,6 +518,7 @@ std::string Llvm_compiler::zext(std::string reg , std::string cur_size , std::st
 
 
 std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
+    int backpatch_check =  code_bp.emit("br i1" + bool_exp.data +" label @, label @");
     std::string bool_reg = generate_reg();
     std::string true_label = code_bp.genLabel();
     int backpatch_for_true =  code_bp.emit("br label @");
@@ -442,6 +528,8 @@ std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
     string phi_label = code_bp.genLabel();
     code_bp.emit(bool_reg + " = phi i32 [  1, %" + true_label + "], [  0, %" + false_label + "]");
 
+    bool_exp.truelist = code_bp.merge(bool_exp.truelist,code_bp.makelist({backpatch_check,FIRST}));
+    bool_exp.falselist = code_bp.merge(bool_exp.falselist,code_bp.makelist({backpatch_check,SECOND}));
     code_bp.bpatch(bool_exp.truelist, true_label);
     code_bp.bpatch(bool_exp.falselist, false_label);
 

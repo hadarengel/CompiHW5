@@ -71,11 +71,11 @@
         }
     ;
 
-    Statements: Statement {}
-    | Statements Statement {}
+    Statements: Statement {$$ = $1;}
+    | Statements Statement {$$ = comp.merge_unions($1,$2);}
     ;
 
-    Statement: LBRACE {openScope(false);} Statements RBRACE {closeScope();}
+    Statement: LBRACE {comp.openScope();} Statements RBRACE {comp.closeScope(); $$ = $3;}
     | TypeAnnotation Type ID SC 
         {
         if($1.is_const) output::errorConstDef(yylineno);
@@ -105,16 +105,12 @@
 
     MWhile: WHILE {comp.begin_while();}
 
-    Call: ID LPAREN ExpList RPAREN {$$.type = checkFuncDecl($1.name, $3.params_types);}
-    | ID LPAREN RPAREN {$$.type = checkFuncDecl($1.name, vector<std::string>());}
+    Call: ID LPAREN ExpList RPAREN {$$ = comp.handle_call($1.data);}
+    | ID LPAREN RPAREN {$$ = comp.handle_call($1.data);}
     ;
 
-    ExpList: Exp {$$.params_types.push_back($1.type);}
-    | Exp COMMA ExpList 
-        {
-        $$.params_types.push_back($1.type);
-        mergeVectors($$.params_types,$3.params_types);
-        }
+    ExpList: Exp {comp.add_call_arg($1);}
+    | Exp COMMA ExpList {comp.add_call_arg($1);}
     ;
 
     Type: INT {$$.type="INT";}

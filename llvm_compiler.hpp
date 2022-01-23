@@ -27,7 +27,7 @@ class Llvm_compiler
 {
 private:
     /* data */
-    CodeBuffer& code_bp;
+    static CodeBuffer& code_bp;
     Sym_table symbol_table;
 
     unsigned int regs_counter = 0;
@@ -35,6 +35,7 @@ private:
     std::string stack_ptr_reg;
 
     vector<std::string> nested_while_labels;
+    vector<union_class> call_args_list;
 
     /*-----Private Functions-----*/
 
@@ -61,8 +62,12 @@ public:
     Llvm_compiler();
     ~Llvm_compiler();
 
+    union_class merge_lists(union_class& uni_1, union_class& uni_2);
 
     /*------------------------------Statements Handlers-----------------------------------*/
+    void openScope();
+    void closeScope();
+    
     //Add var name to the symbol table and generate decleration code to the code buffer
     void handle_var_decl(std::string& type, std::string& name);
     void handle_var_decl(bool is_const, std::string& type, std::string& name, union_class& assign_exp);
@@ -87,6 +92,8 @@ public:
     void handle_continue();
 
     union_class handle_cond(union_class& exp);
+
+    union_class handle_call(std::string func_id);
 
 
     /*-------------------------------- Exp Handlers ------------------------------------*/
@@ -120,6 +127,8 @@ public:
 
     //Add branch to exp and generate label after br and return the label
     std::string add_br_and_label(union_class& exp);
+
+    void add_call_arg(union_class& exp);
 };
 
 
