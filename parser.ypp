@@ -149,28 +149,18 @@
         {
         $$ = comp.handle_var($1.data);
         }
-    | Call {$$.type = $1.type;}
+    | Call {$$ = $1;}
     | NUM {$$ = comp.handle_literal($1.data,"INT")}
     | NUM B {$$ = comp.handle_literal($1.data,"BYTE")}
-    | STRING {$$.type = "STRING";}
+    | STRING {$$ = comp.handle_string($1.data);}
     | TRUE {$$.data = "1"; $$.type = "BOOL"; $$.is_literal = true;}
     | FALSE {$$.data = "0"; $$.type = "BOOL"; $$.is_literal = true;}
     | NOT Exp   
         {
         $$.type = comp.handle_not($2);
         }
-    | Exp AND Exp   
-        {
-        checkBoolType($1.type);
-        checkBoolType($3.type);
-        $$.type = $1.type;
-        }
-    | Exp OR Exp    
-        {
-        checkBoolType($1.type);
-        checkBoolType($3.type);
-        $$.type = $1.type;
-        }
+    | Exp AND {$$.label = comp.add_br_and_label($1);} Exp {$$ = comp.handle_and($1,$$.label,$4);}   
+    | Exp OR {$$.label = comp.add_br_and_label($1);} Exp {$$ = comp.handle_or($1,$$.label,$4);}
     | Exp RELOP Exp 
         {
         $$ = comp.handle_relop_equalop($1,$2.data,$3);

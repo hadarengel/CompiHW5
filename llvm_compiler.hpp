@@ -31,6 +31,7 @@ private:
     Sym_table symbol_table;
 
     unsigned int regs_counter = 0;
+    unsigned int string_counter = 0;
     std::string stack_ptr_reg;
 
     /*-----Private Functions-----*/
@@ -91,9 +92,16 @@ public:
     // Handle casting
     union_class handle_cast(std::string cast_type, union_class& exp);
 
+    // Handle strings implementation
+    union_class handle_string(std::string str);
+
             /*----------------------- Boolean Handlers -------------------*/
     union_class handle_not(union_class& exp);
-    union_class handle_or(union_class& exp_1, union_class& exp_2);
+    union_class handle_or(union_class& exp_1, std::string or_label, union_class& exp_2);
+    union_class handle_and(union_class& exp_1, std::string or_label, union_class& exp_2);
+
+    //Add branch to exp and generate label after br and return the label
+    std::string add_br_and_label(union_class& exp);
 };
 
 

@@ -226,10 +226,6 @@ union_class Llvm_compiler::handle_relop_equalop(union_class& exp_1,std::string o
     res_exp.data = generate_reg();
     std::string code = res_exp.data + " = icmp " + llvm_op + " " + typeSize(op_type) + " " + exp1_data + " , " + exp2_data;
     code_bp.emit(code);
-    code = " br i1 " + res_exp.data + " label @ , label @";
-    int br_location = code_bp.emit(code);
-    res_exp.truelist.push_back(make_pair(br_location, FIRST));
-    res_exp.falselist.push_back(make_pair(br_location, SECOND)); 
 
     return res_exp;
 }
@@ -277,9 +273,54 @@ union_class Llvm_compiler::handle_not(union_class& exp){
     return res_exp;
 }
 
+union_class Llvm_compiler::handle_or(union_class& exp_1, std::string or_label, union_class& exp_2){
+    symbol_table.checkBoolType(exp_1.type);
+    symbol_table.checkBoolType(exp_2.type);
+    union_class res_exp = exp_2;
+    res_exp.is_literal = false;
+    code_bp.bpatch(exp_1.falselist,or_label);
+    res_exp.truelist = code_bp.merge(exp_1.truelist,exp_2.truelist);
+    return res_exp;
+}
+
+union_class Llvm_compiler::handle_and(union_class& exp_1, std::string or_label, union_class& exp_2){
+    symbol_table.checkBoolType(exp_1.type);
+    symbol_table.checkBoolType(exp_2.type);
+    union_class res_exp = exp_2;
+    res_exp.is_literal = false;
+    code_bp.bpatch(exp_1.truelist,or_label);
+    res_exp.falselist = code_bp.merge(exp_1.falselist,exp_2.falselist);
+    return res_exp;
+}
 
 
+std::string Llvm_compiler::add_br_and_label(union_class& exp){
+    symbol_table.checkBoolType(exp.type);
+    std::string code = "br i1 " + exp.data +", label @, label @";
+    int loc = code_bp.emit(code);
+    exp.truelist = code_bp.merge(exp.truelist,code_bp.makelist({loc,FIRST}));
+    exp.falselist = code_bp.merge(exp.falselist,code_bp.makelist({loc,SECOND}));
+    return code_bp.genLabel();
+}
 
+
+union_class Llvm_compiler::handle_string(std::string str) {
+
+    union_class res_exp;
+    res_exp.type = "STRING";
+    string str_name = "@.str" + to_string(string_counter++);
+
+    str.erase(0, 1); // delete start "
+    str.erase(str.size() - 1); //delete end "
+    int str_size= str.size() + 1;
+    
+    code_bp.emitGlobal(str_name + " = constant [" + to_string(str_size) + " x i8] c\"" + str + "\\00\"");
+
+    res_exp.data = generate_reg();
+    code_bp.emit(res_exp.data + " = getelementptr inbounds [" +to_string(str_size) + " x i8], [" + to_string(str_size) + " x i8]* " + str_name + ", i32 0, i32 0");
+    
+    return res_exp;
+}
 
 
 

@@ -51,7 +51,7 @@ continue                                        return CONTINUE;
 \/\/[^\n\r]*[\r|\n|\r\n]?                       ;
 [a-zA-Z][a-zA-Z0-9]*                            {yylval.data = yytext; return ID;}
 0|[1-9][0-9]*                                   {yylval.data = yytext; return NUM;}
-\"([^\n\r\"\\]|\\[rnt"\\])+\"                   return STRING;
+\"([^\n\r\"\\]|\\[rnt"\\])+\"                   {yylval.data = yytext; return STRING;}
 {whitespace}                                    ;
 .                                               {output::errorLex(yylineno); exit(0);}
 %%
