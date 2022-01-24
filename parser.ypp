@@ -45,29 +45,32 @@
     | FuncDecl Funcs {}
     ;
 
-    FuncDecl: RetType ID LPAREN {openScope(false);} Formals RPAREN {addFunc($2.name, $1.type, $5.params_types);} LBRACE Statements RBRACE {closeScope();}
+    FuncDecl: MFuncDecl LBRACE Statements RBRACE {handle_func_end($1.type);}
     ;
 
+    MFuncDecl: RetType ID LPAREN Formals RPAREN 
+    {
+        handle_func_decl($1.type,$2.data);
+        $$.type = $1.type;
+    }
+    ;
     RetType: Type {$$.type = $1.type;} 
     | VOID {$$.type = "VOID";}
     ;
 
-    Formals: /* empty */ {$$.params_types = vector<std::string>();}
-    | FormalsList {$$.params_types = $1.params_types;}
+    Formals: /* empty */ 
+    | FormalsList 
     ;
 
-    FormalsList: FormalDecl {$$.params_types.push_back($1.type);}
-    | FormalDecl COMMA FormalsList 
-        {
-        $$.params_types.push_back($1.type);
-        mergeVectors($$.params_types, $3.params_types);
-        }
+    FormalsList: FormalDecl {comp.add_func_arg($1);}
+    | FormalDecl COMMA FormalsList {comp.add_func_arg($1);}
     ;
 
     FormalDecl: TypeAnnotation Type ID 
         {
-        addArg($3.name,$2.type, $1.is_const);
+        $$.data = $3.data;
         $$.type = $2.type;
+        $$.is_const = $1.is_const;
         }
     ;
 
@@ -100,10 +103,13 @@
     ;
 
     MExp: Exp {$$ = comp.handle_cond($1);}
+    ;
 
     MElse: ELSE {$$ = comp.begin_else();}
+    ;
 
     MWhile: WHILE {comp.begin_while();}
+    ;
 
     Call: ID LPAREN ExpList RPAREN {$$ = comp.handle_call($1.data);}
     | ID LPAREN RPAREN {$$ = comp.handle_call($1.data);}
@@ -167,7 +173,7 @@
         {
         $$ = comp.handle_cast($1.type,$4)
         } 
-
+    ;
 
 
     
@@ -176,9 +182,9 @@
 
     int main()
     {
-        InitParser();
         int parse_ret = yyparse();
-        FinishParser();
+        comp.printGlobalBuffer();
+        comp.printCodeBuffer();
         return parse_ret;
     }
 

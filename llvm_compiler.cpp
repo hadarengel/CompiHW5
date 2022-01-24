@@ -14,17 +14,24 @@ Llvm_compiler::Llvm_compiler(){
     code_bp.emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
     code_bp.emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
     code_bp.emitGlobal("@.div_zero_str = constant [23 x i8] c\"Error division by zero\\00\"");
+    
+    symbol_table.addFunc("printi","void");
+    symbol_table.updateFuncParams("printi",{"INT"});
     code_bp.emit("define void @printi(i32) {");
     code_bp.emit("  %spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
     code_bp.emit("  call i32 (i8*, ...) @printf(i8* %spec_ptr, i32 %0)");
     code_bp.emit("  ret void");
     code_bp.emit("}");
+    code_bp.emit("");
 
+    symbol_table.addFunc("print","void");
+    symbol_table.updateFuncParams("printi",{"STRING"});
     code_bp.emit("define void @print(i8*) {");
     code_bp.emit("  %spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
     code_bp.emit("  call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)=");
     code_bp.emit("  ret void");
     code_bp.emit("}");
+    code_bp.emit("");
     
 }
 
@@ -176,29 +183,7 @@ void Llvm_compiler::handle_continue(){
     code_bp.emit(code);
 }
 
-union_class Llvm_compiler::handle_call(std::string func_id){
-    std::string call_args;
-    vector<std::string> params_types;
-    while(!call_args_list.empty()){
-        union_class arg_exp = call_args_list.back();
-        call_args += typeSize(arg_exp.type) + " " + arg_exp.data + ", ";
-        params_types.push_back(arg_exp.type);
-        call_args_list.pop_back();
-    }
-    if(!call_args.empty()){// delete last ", "
-        call_args.erase(call_args.size() - 2);
-    }
-    union_class call_res;
-    call_res.type = symbol_table.checkFuncDecl(func_id,params_types);
-    std::string code;
-    if(call_res.type != "VOID"){
-        call_res.data = generate_reg();
-        code += call_res.data + " = ";
-    }
-    code += "call " + typeSize(call_res.type) + " @" + func_id + "(" + call_args + ")";
-    code_bp.emit(code);
-    return call_res;
-}
+
 
 union_class Llvm_compiler::handle_var(std::string var_id){
     bool is_const = symbol_table.checkValidVar(var_id);
@@ -469,8 +454,68 @@ void Llvm_compiler::add_call_arg(union_class& exp){
     if(exp.type == "BOOL" && (!exp.is_literal)){
         exp.data = assign_bool(exp);
     }
-    call_args_list.push_back(exp);
+    args_list.push_back(exp);
 }
+
+void Llvm_compiler::add_func_arg(union_class& exp){
+    args_list.push_back(exp);
+}
+
+void Llvm_compiler::handle_func_decl(std::string ret_type,std::string func_id){
+    symbol_table.addFunc(func_id,ret_type);
+    symbol_table.openScope();
+    std::string args_code; 
+    vector<std::string> params_types;
+    while(!args_list.empty()){
+        union_class arg_exp = args_list.back();
+        symbol_table.addArg(arg_exp.data,arg_exp.type,arg_exp.is_const);
+        args_code += typeSize(arg_exp.type) + " " + arg_exp.data + ", ";
+        params_types.push_back(arg_exp.type);
+        args_list.pop_back();
+    }
+     if(!args_code.empty()){// delete last ", "
+        args_code.erase(args_code.size() - 2);
+    }
+    symbol_table.updateFuncParams(func_id,params_types);
+    std::string code = "define " + typeSize(ret_type) + " @" + func_id + "(" + args_code + ") {";
+    code_bp.emit(code);
+}
+
+void Llvm_compiler::handle_func_end(std::string ret_type){
+    std::string ret_code = "ret " + typeSize(ret_type);
+    if(ret_type != "VOID"){
+        ret_code += " 0";
+    }
+    code_bp.emit(ret_code);
+    code_bp.emit("}");
+    code_bp.emit("");
+    symbol_table.closeScope();
+}
+
+union_class Llvm_compiler::handle_call(std::string func_id){
+    std::string call_args;
+    vector<std::string> params_types;
+    while(!args_list.empty()){
+        union_class arg_exp = args_list.back();
+        call_args += typeSize(arg_exp.type) + " " + arg_exp.data + ", ";
+        params_types.push_back(arg_exp.type);
+        args_list.pop_back();
+    }
+    if(!call_args.empty()){// delete last ", "
+        call_args.erase(call_args.size() - 2);
+    }
+    union_class call_res;
+    call_res.type = symbol_table.checkFuncDecl(func_id,params_types);
+    std::string code;
+    if(call_res.type != "VOID"){
+        call_res.data = generate_reg();
+        code += call_res.data + " = ";
+    }
+    code += "call " + typeSize(call_res.type) + " @" + func_id + "(" + call_args + ")";
+    code_bp.emit(code);
+    return call_res;
+}
+
 
 union_class Llvm_compiler::merge_lists(union_class& uni_1, union_class& uni_2){
     union_class uni_res;
@@ -497,6 +542,9 @@ std::string Llvm_compiler::typeSize(std::string type){
     }
     if(type == "STRING"){
         return "i8*";
+    }
+    if(type == "VOID"){
+        return "void";
     }
     return "i32";
 }

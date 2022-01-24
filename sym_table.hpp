@@ -44,7 +44,9 @@ public:
     void closeScope();
 
     //Add function to symbol table and global scope
-    void addFunc(const std::string& name, const std::string& ret_type,  const std::vector<std::string>& params);
+    void addFunc(const std::string& name, const std::string& ret_type);
+
+    void updateFuncParams(const std::string& func_id, const vector<std::string>& params_t);
 
     //Insert variable to symbol table and current scope
     void addVar(const std::string& name, const std::string& type, bool is_const = false, bool is_literal = false);

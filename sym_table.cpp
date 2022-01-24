@@ -34,7 +34,7 @@ public:
 	std::vector<std::string> params;    /* types of the function parameters     	*/
 
 	funcType(){}
-	funcType(const std::string& n, const std::string& t,  int of, const std::string& rt, const std::vector<std::string>& p): sType(n,t,of) , ret_type(rt), params(p){}
+	funcType(const std::string& n, const std::string& t,  int of, const std::string& rt): sType(n,t,of) , ret_type(rt){}
 	void printSymbol(){output::printID(name, offset, output::makeFunctionType(ret_type, params));}
 };
 
@@ -83,8 +83,6 @@ Sym_table::Sym_table(bool print_copes_t = false) {
 
     openScope(); //open global scope
 	
-    addFunc("print", "VOID", {"STRING"});
-	addFunc("printi", "VOID", {"INT"});
 	
 }
 
@@ -159,12 +157,18 @@ void Sym_table::checkFuncIsMain(const funcType& func) {
 }
 
 //Add function to symbol table and global scope
-void Sym_table::addFunc(const string& name, const string& ret_type, const vector<string>& params) {
+void Sym_table::addFunc(const string& name, const string& ret_type) {
 	checkNameAvailable(name);
-    funcType* sym_ptr = new funcType(name, "FUNC", 0, ret_type, params);
+    funcType* sym_ptr = new funcType(name, "FUNC", 0, ret_type);
 	symbol_table[name] = sym_ptr;
     stack_scope.front().symbols_list.push_back(name);
 	checkFuncIsMain(*sym_ptr);		
+}
+
+//Update func parameters. assume func_id is func
+void Sym_table::updateFuncParams(const std::string& func_id, const vector<std::string>& params_t){
+	funcType* func_ptr = (funcType*) symbol_table[func_id];
+	func_ptr->params = params_t;
 }
 
 // Insert variable to symbol table and current scope

@@ -12,7 +12,7 @@ class union_class{
         std::string data;
         std::string type;
         std::string label;
-        std::vector<std::string> params_types;
+
         bool is_const = false;
         bool is_literal = false;
 
@@ -35,7 +35,7 @@ private:
     std::string stack_ptr_reg;
 
     vector<std::string> nested_while_labels;
-    vector<union_class> call_args_list;
+    vector<union_class> args_list;
 
     /*-----Private Functions-----*/
 
@@ -128,7 +128,11 @@ public:
     //Add branch to exp and generate label after br and return the label
     std::string add_br_and_label(union_class& exp);
 
+    /*------------------------------ Function Handlers ---------------------------------*/
     void add_call_arg(union_class& exp);
+    void add_func_arg(union_class& exp);
+    void handle_func_decl(std::string ret_type,std::string func_id);
+    void handle_func_end(std::string ret_type);
 };
 
 
