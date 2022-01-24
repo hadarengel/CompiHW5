@@ -14,7 +14,7 @@ Llvm_compiler::Llvm_compiler(): code_bp(CodeBuffer::instance()){
     code_bp.emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
     code_bp.emitGlobal("@.div_zero_str = constant [23 x i8] c\"Error division by zero\\00\"");
     
-    symbol_table.addFunc("printi","void");
+    symbol_table.addFunc("printi","VOID");
     symbol_table.updateFuncParams("printi",{"INT"});
     code_bp.emit("define void @printi(i32) {");
     code_bp.emit("  %spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
@@ -23,7 +23,7 @@ Llvm_compiler::Llvm_compiler(): code_bp(CodeBuffer::instance()){
     code_bp.emit("}");
     code_bp.emit("");
 
-    symbol_table.addFunc("print","void");
+    symbol_table.addFunc("print","VOID");
     symbol_table.updateFuncParams("print",{"STRING"});
     code_bp.emit("define void @print(i8*) {");
     code_bp.emit("  %spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
@@ -124,6 +124,7 @@ void Llvm_compiler::handle_return(union_class& exp){
         ret_data = assign_bool(exp);
     }
     std::string code = "ret " + typeSize(exp.type) + " " + ret_data;
+    code_bp.emit(code);
 }
 
 union_class Llvm_compiler::begin_else(){
@@ -138,8 +139,9 @@ union_class Llvm_compiler::begin_else(){
 }
 
 union_class Llvm_compiler::end_if(union_class& exp, union_class& states){
+    int loc = code_bp.emit("br label @");
     std::string next_label = code_bp.genLabel();
-    code_bp.bpatch(exp.truelist,next_label);
+    code_bp.bpatch(code_bp.merge(exp.falselist,code_bp.makelist({loc,FIRST})),next_label);
     union_class res_exp;
     res_exp.nextlist = states.nextlist;
     symbol_table.closeScope();
@@ -147,8 +149,9 @@ union_class Llvm_compiler::end_if(union_class& exp, union_class& states){
 }
 
 union_class Llvm_compiler::end_else(union_class& exp, union_class& if_states, union_class& else_exp,union_class& else_states){
+    int loc = code_bp.emit("br label @");
     std::string next_label = code_bp.genLabel();
-    code_bp.bpatch(else_exp.nextlist,next_label);
+    code_bp.bpatch(code_bp.merge(else_exp.nextlist,code_bp.makelist({loc,FIRST})),next_label);
     code_bp.bpatch(exp.falselist,else_exp.label);
     union_class res_exp;
     res_exp.nextlist = code_bp.merge(if_states.nextlist,else_states.nextlist);
@@ -157,8 +160,10 @@ union_class Llvm_compiler::end_else(union_class& exp, union_class& if_states, un
 }
 
 void Llvm_compiler::begin_while(){
+    int loc = code_bp.emit("br label @");
     std::string w_label = code_bp.genLabel();
     nested_while_labels.push_back(w_label);
+    code_bp.bpatch(code_bp.makelist({loc,FIRST}),w_label);
 }
 
 void Llvm_compiler::end_while(union_class& exp, union_class& states){
@@ -216,14 +221,19 @@ union_class Llvm_compiler::handle_var(std::string var_id){
         new_exp.data = var_ptr; //var_ptr contain the literal value
     }
     else{
+        new_exp.is_literal = false;
         int offset = symbol_table.getOffset(var_id);
         if(offset <0){ 
             new_exp.data = "%" + to_string(-(1+offset));
         }
-        new_exp.is_literal = false;
-        new_exp.data = generate_reg();
-        std::string code = new_exp.data + " = load " + typeSize(new_exp.type) + " , i32* " + var_ptr; 
-        code_bp.emit(code);
+        else{
+            new_exp.data = generate_reg();
+            std::string code = new_exp.data + " = load i32 , i32* " + var_ptr; 
+            code_bp.emit(code);
+            if(typeSize(new_exp.type) != "i32"){
+                new_exp.data = trunc(new_exp.data,"i32",typeSize(new_exp.type));
+            }
+        }
     }
     return new_exp;
 }
@@ -489,7 +499,7 @@ void Llvm_compiler::handle_func_decl(std::string ret_type,std::string func_id){
     while(!args_list.empty()){
         union_class arg_exp = args_list.back();
         symbol_table.addArg(arg_exp.data,arg_exp.type,arg_exp.is_const);
-        args_code += typeSize(arg_exp.type) + " " + arg_exp.data + ", ";
+        args_code += typeSize(arg_exp.type) + ", ";
         params_types.push_back(arg_exp.type);
         args_list.pop_back();
     }
