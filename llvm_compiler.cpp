@@ -70,21 +70,19 @@ void Llvm_compiler::handle_var_decl(bool is_const, std::string& type, std::strin
         symbol_table.updateReg(name,assign_exp.data);
     }
     else{
-        symbol_table.addVar(name,type,is_const,false);
-        std::string reg_ptr = generate_reg() + "_address_to_" + name;
-        symbol_table.updateReg(name,reg_ptr);
-        std::string code = reg_ptr + " = getelementptr i32, i32* " + stack_ptr_reg + " , i32 " + to_string(symbol_table.getOffset(name));
-        code_bp.emit(code);
         std::string assign_data = assign_exp.data;
         std::string assign_type = typeSize(assign_exp.type);
         if(assign_type != "i32" && !assign_exp.is_literal){
             if(assign_type == "i1"){
                 assign_data = assign_bool(assign_exp);
             }
-            else{
-                assign_data = zext(assign_data,assign_type,"i32");
-            }
+            assign_data = zext(assign_data,assign_type,"i32");
         }
+        symbol_table.addVar(name,type,is_const,false);
+        std::string reg_ptr = generate_reg() + "_address_to_" + name;
+        symbol_table.updateReg(name,reg_ptr);
+        std::string code = reg_ptr + " = getelementptr i32, i32* " + stack_ptr_reg + " , i32 " + to_string(symbol_table.getOffset(name));
+        code_bp.emit(code);
         code = "store i32 " + assign_data + " , i32* " + reg_ptr;
         code_bp.emit(code);
     }
@@ -104,9 +102,7 @@ void Llvm_compiler::handle_assign(std::string dest_id, union_class& assign_exp){
         if(assign_type == "i1"){
             assign_data = assign_bool(assign_exp);
         }
-        else{
-            assign_data = zext(assign_data,assign_type,"i32");
-        }
+        assign_data = zext(assign_data,assign_type,"i32");
     }
     std::string code = "store i32 " + assign_data + " , i32* " + symbol_table.getReg(dest_id);
     code_bp.emit(code);
@@ -130,8 +126,8 @@ void Llvm_compiler::handle_return(union_class& exp){
 union_class Llvm_compiler::begin_else(){
     std::string code = "br label @";
     int loc = code_bp.emit(code);
-    symbol_table.closeScope();
-    symbol_table.openScope();
+    closeScope();
+    openScope();
     union_class else_exp;
     else_exp.label = code_bp.genLabel();
     else_exp.nextlist = code_bp.makelist({loc,FIRST});
@@ -144,7 +140,7 @@ union_class Llvm_compiler::end_if(union_class& exp, union_class& states){
     code_bp.bpatch(code_bp.merge(exp.falselist,code_bp.makelist({loc,FIRST})),next_label);
     union_class res_exp;
     res_exp.nextlist = states.nextlist;
-    symbol_table.closeScope();
+    closeScope();
     return res_exp;
 }
 
@@ -155,7 +151,7 @@ union_class Llvm_compiler::end_else(union_class& exp, union_class& if_states, un
     code_bp.bpatch(exp.falselist,else_exp.label);
     union_class res_exp;
     res_exp.nextlist = code_bp.merge(if_states.nextlist,else_states.nextlist);
-    symbol_table.closeScope();
+    closeScope();
     return res_exp;
 }
 
@@ -173,7 +169,7 @@ void Llvm_compiler::end_while(union_class& exp, union_class& states){
     std::string next_label = code_bp.genLabel();
     code_bp.bpatch(next_list,next_label);
     nested_while_labels.pop_back();
-    symbol_table.closeScope();
+    closeScope();
 }
 
 union_class Llvm_compiler::handle_cond(union_class& exp){
@@ -181,7 +177,7 @@ union_class Llvm_compiler::handle_cond(union_class& exp){
     std::string true_label = add_br_and_label(exp);
     code_bp.bpatch(exp.truelist,true_label);
     res_exp.falselist = exp.falselist;
-    symbol_table.openScope();
+    openScope();
     return res_exp;
 }
 
@@ -320,7 +316,7 @@ union_class Llvm_compiler::handle_div(union_class& exp_1, union_class& exp_2){
     
     /*------ check div by zero ------*/
     std::string div_reg = generate_reg();
-    code_bp.emit(div_reg + " = icmp eq i32 0, " + data2);
+    code_bp.emit(div_reg + " = icmp eq "+ typeSize(exp_2.type) +" 0, " + data2);
     int loc = code_bp.emit("br i1 " + div_reg + ", label @, label @");
 
     std::string zero_label = code_bp.genLabel();
@@ -328,11 +324,12 @@ union_class Llvm_compiler::handle_div(union_class& exp_1, union_class& exp_2){
     code_bp.emit(div_str_ptr + " = " + "getelementptr inbounds [23 x i8], [23 x i8]* @.div_zero_str, i32 0, i32 0");
     code_bp.emit("call void @print(i8* " + div_str_ptr + ")");
     code_bp.emit("call void @exit(i32 0)");
+    int loc_end = code_bp.emit("br label @");
 
     std::string not_zero_label = code_bp.genLabel();
 
     code_bp.bpatch(code_bp.makelist({loc, FIRST}), zero_label);
-    code_bp.bpatch(code_bp.makelist({loc, SECOND}), not_zero_label);
+    code_bp.bpatch(code_bp.merge(code_bp.makelist({loc, SECOND}),code_bp.makelist({loc_end, SECOND})), not_zero_label);
     /*-------------------------------*/
 
     if(res_exp.type == "INT"){
@@ -425,6 +422,7 @@ union_class Llvm_compiler::handle_not(union_class& exp){
     if(exp.is_literal){
         res_exp.data = exp.data == "1" ? "0" : "1";
     }
+    
     res_exp.truelist = exp.falselist;
     res_exp.falselist = exp.truelist;
 
@@ -522,23 +520,41 @@ void Llvm_compiler::handle_func_end(std::string ret_type){
     code_bp.emit(ret_code);
     code_bp.emit("}");
     code_bp.emit("");
-    symbol_table.closeScope();
+    closeScope();
 }
 
 union_class Llvm_compiler::handle_call(std::string func_id){
+    union_class call_res;
+    call_res.type = symbol_table.checkValidFunc(func_id);
     std::string call_args;
-    vector<std::string> params_types;
+    vector<std::string> params_types = symbol_table.getFuncParams(func_id);
+    if (args_list.size()!=params_types.size())
+    {
+        output::errorPrototypeMismatch(yylineno, func_id,params_types);
+		symbol_table.abortParser(1);
+    }
+    int i=0;
     while(!args_list.empty()){
         union_class arg_exp = args_list.back();
+        if(params_types[i] != arg_exp.type){
+            if(params_types[i] == "INT" && arg_exp.type == "BYTE"){
+                arg_exp.data = zext(arg_exp.data,"i8","i32");
+                arg_exp.type = "INT";
+            }
+            else{
+                 output::errorPrototypeMismatch(yylineno, func_id,params_types);
+		        symbol_table.abortParser(1);
+            }
+        }
         call_args += typeSize(arg_exp.type) + " " + arg_exp.data + ", ";
         params_types.push_back(arg_exp.type);
         args_list.pop_back();
+        i++;
     }
     if(!call_args.empty()){// delete last ", "
         call_args.erase(call_args.size() - 2);
     }
-    union_class call_res;
-    call_res.type = symbol_table.checkFuncDecl(func_id,params_types);
+    
     std::string code;
     if(call_res.type != "VOID"){
         call_res.data = generate_reg();
@@ -599,7 +615,7 @@ std::string Llvm_compiler::zext(std::string reg , std::string cur_size , std::st
 
 
 std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
-    int backpatch_check =  code_bp.emit("br i1" + bool_exp.data +" label @, label @");
+    int backpatch_check =  code_bp.emit("br i1 " + bool_exp.data +", label @, label @");
     std::string bool_reg = generate_reg();
     std::string true_label = code_bp.genLabel();
     int backpatch_for_true =  code_bp.emit("br label @");
@@ -607,7 +623,7 @@ std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
     int backpatch_for_false =  code_bp.emit("br label @");
 
     string phi_label = code_bp.genLabel();
-    code_bp.emit(bool_reg + " = phi i32 [  1, %" + true_label + "], [  0, %" + false_label + "]");
+    code_bp.emit(bool_reg + " = phi i1 [  1, %" + true_label + "], [  0, %" + false_label + "]");
 
     bool_exp.truelist = code_bp.merge(bool_exp.truelist,code_bp.makelist({backpatch_check,FIRST}));
     bool_exp.falselist = code_bp.merge(bool_exp.falselist,code_bp.makelist({backpatch_check,SECOND}));

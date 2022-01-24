@@ -272,27 +272,20 @@ void Sym_table::checkOverFlowByte(int num) {
 	}
 }
 
-// Check if the function was decleared and its call is valid,will return the function ret_type
-string Sym_table::checkFuncDecl(const string& name, const vector<string>& params_types) { 
+
+
+string Sym_table::checkValidFunc(const string& name) { 
 	if (symbol_table.find(name) == symbol_table.end() || symbol_table[name]->type != "FUNC") {
 		output::errorUndefFunc(yylineno, name);
 		abortParser(1);
 	}
 	funcType* sym_ptr = (funcType*)symbol_table[name];
-	if (sym_ptr->params.size() != params_types.size()) {
-		output::errorPrototypeMismatch(yylineno, name, sym_ptr->params);
-		abortParser(1);
-	}
-	for (unsigned int i =0; i < params_types.size(); i++) {
-		string func_param_type = sym_ptr->params[i];
-        string call_param_type = params_types[i];
-        if (func_param_type != call_param_type && !(func_param_type == "INT" && call_param_type == "BYTE")){
-			output::errorPrototypeMismatch(yylineno, name, sym_ptr->params);
-			abortParser(1);
-		}
-	}
-    return sym_ptr->ret_type;
+	return sym_ptr->ret_type;
+}
 
+std::vector<std::string> Sym_table::getFuncParams(const std::string& name){
+	funcType* sym_ptr = (funcType*)symbol_table[name];
+	return sym_ptr->params;
 }
 
 //Check if the casting is valid

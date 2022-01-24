@@ -49,6 +49,10 @@ public:
 
     void updateFuncParams(const std::string& func_id, const vector<std::string>& params_t);
 
+    std::string checkValidFunc(const std::string& name);
+
+    std::vector<std::string> getFuncParams(const std::string& name);
+
     //Insert variable to symbol table and current scope
     void addVar(const std::string& name, const std::string& type, bool is_const = false, bool is_literal = false);
 
@@ -86,9 +90,6 @@ public:
 
     //Check if byte is overflow
     void checkOverFlowByte(int num);
-
-    //Check if the function was decleared and its call is valid,will return the function ret_type
-    std::string checkFuncDecl(const std::string& name, const std::vector<std::string>& params_types);
 
     //Check if the casting is valid
     void checkValidCast(const std::string& t1, const std::string& t2);

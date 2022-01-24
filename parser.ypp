@@ -171,7 +171,7 @@
         }
     | LPAREN Type RPAREN Exp 
         {
-        $$ = comp.handle_cast($1.type,$4);
+        $$ = comp.handle_cast($2.type,$4);
         } 
     ;
 
