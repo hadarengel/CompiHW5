@@ -24,10 +24,10 @@ Llvm_compiler::Llvm_compiler(): code_bp(CodeBuffer::instance()){
     code_bp.emit("");
 
     symbol_table.addFunc("print","void");
-    symbol_table.updateFuncParams("printi",{"STRING"});
+    symbol_table.updateFuncParams("print",{"STRING"});
     code_bp.emit("define void @print(i8*) {");
     code_bp.emit("  %spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
-    code_bp.emit("  call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)=");
+    code_bp.emit("  call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)");
     code_bp.emit("  ret void");
     code_bp.emit("}");
     code_bp.emit("");
@@ -39,6 +39,9 @@ void Llvm_compiler::printBuffers(){
     code_bp.printCodeBuffer();
 }
 
+bool Llvm_compiler::is_main_exist(){
+    return symbol_table.is_main_exist;
+}
 
 void Llvm_compiler::openScope(){
     symbol_table.openScope();

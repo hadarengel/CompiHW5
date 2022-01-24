@@ -62,6 +62,8 @@ public:
     Llvm_compiler();
     ~Llvm_compiler() = default;
 
+    bool is_main_exist();
+
     union_class merge_lists(union_class& uni_1, union_class& uni_2);
     void printBuffers();
     /*------------------------------Statements Handlers-----------------------------------*/

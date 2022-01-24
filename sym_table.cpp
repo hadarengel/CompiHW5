@@ -48,8 +48,7 @@ public:
 	std::string ptr_reg; /* holds register name of var pointer on stack, in case of literal will hold the value itself*/
 
 	varType(){}
-	varType(const std::string& n, const std::string& t,  int of, bool is_const_t, bool is_literal_t): sType(n,t,of), is_const(is_const_t), is_literal(is_literal_t)
-	{ptr_reg = nullptr;}
+	varType(const std::string& n, const std::string& t,  int of, bool is_const_t, bool is_literal_t): sType(n,t,of), is_const(is_const_t), is_literal(is_literal_t){}
 
 	void printSymbol(){output::printID(name, offset, type);}
 };

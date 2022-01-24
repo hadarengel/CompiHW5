@@ -183,6 +183,10 @@
     int main()
     {
         int parse_ret = yyparse();
+        if(!comp.is_main_exist()){
+            output::errorMainMissing();
+            exit(1);
+        }
         comp.printBuffers();
         return parse_ret;
     }

@@ -23,7 +23,6 @@ private:
     vector<scope> stack_scope;
     unordered_map<string, sType*> symbol_table;
     int global_offset;
-    bool is_main_exist;
     bool print_scopes;
 
     /*   Private Functions   */
@@ -34,6 +33,8 @@ private:
     
 
 public:
+    bool is_main_exist;
+
     Sym_table(bool print_scopes = false);
     ~Sym_table();
 
