@@ -174,8 +174,11 @@ void Llvm_compiler::end_while(union_class& exp, union_class& states){
 
 union_class Llvm_compiler::handle_cond(union_class& exp){
     union_class res_exp;
-    std::string true_label = add_br_and_label(exp);
-    code_bp.bpatch(exp.truelist,true_label);
+    symbol_table.checkBoolType(exp.type);
+    if(exp.is_literal){
+        add_br_and_label(exp);
+    }
+    code_bp.bpatch(exp.truelist,exp.label);
     res_exp.falselist = exp.falselist;
     openScope();
     return res_exp;
@@ -229,6 +232,9 @@ union_class Llvm_compiler::handle_var(std::string var_id){
             if(typeSize(new_exp.type) != "i32"){
                 new_exp.data = trunc(new_exp.data,"i32",typeSize(new_exp.type));
             }
+        }
+        if(new_exp.type == "BOOL"){
+            add_br_and_label(new_exp);
         }
     }
     return new_exp;
@@ -381,6 +387,7 @@ union_class Llvm_compiler::handle_relop_equalop(union_class& exp_1,std::string o
     res_exp.data = generate_reg();
     std::string code = res_exp.data + " = icmp " + llvm_op + " " + typeSize(op_type) + " " + exp1_data + " , " + exp2_data;
     code_bp.emit(code);
+    add_br_and_label(res_exp);
 
     return res_exp;
 }
@@ -422,41 +429,44 @@ union_class Llvm_compiler::handle_not(union_class& exp){
     if(exp.is_literal){
         res_exp.data = exp.data == "1" ? "0" : "1";
     }
-    
+
     res_exp.truelist = exp.falselist;
     res_exp.falselist = exp.truelist;
 
     return res_exp;
 }
 
-union_class Llvm_compiler::handle_or(union_class& exp_1, std::string or_label, union_class& exp_2){
+union_class Llvm_compiler::handle_or(union_class& exp_1, union_class& exp_2){
     symbol_table.checkBoolType(exp_1.type);
     symbol_table.checkBoolType(exp_2.type);
+    code_bp.bpatch(exp_1.falselist,exp_1.label);
+    if(exp_2.is_literal){
+        add_br_and_label(exp_2);
+    }
     union_class res_exp = exp_2;
     res_exp.is_literal = false;
-    code_bp.bpatch(exp_1.falselist,or_label);
     res_exp.truelist = code_bp.merge(exp_1.truelist,exp_2.truelist);
     return res_exp;
 }
 
-union_class Llvm_compiler::handle_and(union_class& exp_1, std::string or_label, union_class& exp_2){
+union_class Llvm_compiler::handle_and(union_class& exp_1, union_class& exp_2){
     symbol_table.checkBoolType(exp_1.type);
     symbol_table.checkBoolType(exp_2.type);
+    code_bp.bpatch(exp_1.truelist,exp_1.label);
+    if(exp_2.is_literal){
+        add_br_and_label(exp_2);
+    }
     union_class res_exp = exp_2;
     res_exp.is_literal = false;
-    code_bp.bpatch(exp_1.truelist,or_label);
     res_exp.falselist = code_bp.merge(exp_1.falselist,exp_2.falselist);
     return res_exp;
 }
 
 
-std::string Llvm_compiler::add_br_and_label(union_class& exp){
+void Llvm_compiler::add_br_and_label(union_class& exp){
     symbol_table.checkBoolType(exp.type);
-    std::string code = "br i1 " + exp.data +", label @, label @";
-    int loc = code_bp.emit(code);
-    exp.truelist = code_bp.merge(exp.truelist,code_bp.makelist({loc,FIRST}));
-    exp.falselist = code_bp.merge(exp.falselist,code_bp.makelist({loc,SECOND}));
-    return code_bp.genLabel();
+    add_branch(exp);
+    exp.label = code_bp.genLabel();
 }
 
 
@@ -480,7 +490,22 @@ union_class Llvm_compiler::handle_string(std::string str) {
 
 void Llvm_compiler::add_call_arg(union_class& exp){
     if(exp.type == "BOOL" && (!exp.is_literal)){
-        exp.data = assign_bool(exp);
+        int loc_j = code_bp.emit("br label @");
+        std::string true_label = code_bp.genLabel();
+        int loc_t = code_bp.emit("br label @");
+        std::string false_label = code_bp.genLabel();
+        int loc_f = code_bp.emit("br label @");
+        std::string phi_label = code_bp.genLabel();
+        code_bp.bpatch(exp.truelist,true_label);
+        code_bp.bpatch(exp.falselist,false_label);
+        code_bp.bpatch(code_bp.makelist({loc_t,FIRST}),phi_label);
+        code_bp.bpatch(code_bp.makelist({loc_f,FIRST}),phi_label);
+        std::string new_reg = generate_reg();
+        code_bp.emit(new_reg + " = phi i1 [  1, %" + true_label + "], [  0, %" + false_label + "]");
+        exp.data = new_reg;
+        code_bp.emit("br label %" +exp.label);
+        std::string jump_label = code_bp.genLabel();
+        code_bp.bpatch(code_bp.makelist({loc_j,FIRST}),jump_label);
     }
     args_list.push_back(exp);
 }
@@ -565,6 +590,11 @@ union_class Llvm_compiler::handle_call(std::string func_id){
     return call_res;
 }
 
+void Llvm_compiler::dump_retval(union_class& exp){
+    if(exp.type == "BOOL" && !exp.is_literal){
+        code_bp.bpatch(code_bp.merge(exp.truelist,exp.falselist),exp.label);
+    }
+}
 
 union_class Llvm_compiler::merge_lists(union_class& uni_1, union_class& uni_2){
     union_class uni_res;
@@ -615,9 +645,9 @@ std::string Llvm_compiler::zext(std::string reg , std::string cur_size , std::st
 
 
 std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
-    int backpatch_check =  code_bp.emit("br i1 " + bool_exp.data +", label @, label @");
+    //int backpatch_check =  code_bp.emit("br i1 " + bool_exp.data +", label @, label @");
     std::string bool_reg = generate_reg();
-    std::string true_label = code_bp.genLabel();
+    std::string true_label = bool_exp.label;
     int backpatch_for_true =  code_bp.emit("br label @");
     std::string false_label = code_bp.genLabel();
     int backpatch_for_false =  code_bp.emit("br label @");
@@ -625,8 +655,8 @@ std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
     string phi_label = code_bp.genLabel();
     code_bp.emit(bool_reg + " = phi i1 [  1, %" + true_label + "], [  0, %" + false_label + "]");
 
-    bool_exp.truelist = code_bp.merge(bool_exp.truelist,code_bp.makelist({backpatch_check,FIRST}));
-    bool_exp.falselist = code_bp.merge(bool_exp.falselist,code_bp.makelist({backpatch_check,SECOND}));
+   // bool_exp.truelist = code_bp.merge(bool_exp.truelist,code_bp.makelist({backpatch_check,FIRST}));
+    //bool_exp.falselist = code_bp.merge(bool_exp.falselist,code_bp.makelist({backpatch_check,SECOND}));
     code_bp.bpatch(bool_exp.truelist, true_label);
     code_bp.bpatch(bool_exp.falselist, false_label);
 
@@ -636,3 +666,9 @@ std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
     return bool_reg;
 }
 
+void Llvm_compiler::add_branch(union_class& exp){
+    std::string code = "br i1 " + exp.data +", label @, label @";
+    int loc = code_bp.emit(code);
+    exp.truelist = code_bp.merge(exp.truelist,code_bp.makelist({loc,FIRST}));
+    exp.falselist = code_bp.merge(exp.falselist,code_bp.makelist({loc,SECOND}));
+}

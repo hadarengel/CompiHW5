@@ -55,6 +55,9 @@ private:
 
     //generate code for assigning bool type
     std::string assign_bool(union_class& bool_exp);
+
+    //add branch
+    void add_branch(union_class& bool_exp);
     
 
 
@@ -99,6 +102,8 @@ public:
 
     union_class handle_call(std::string func_id);
 
+    void dump_retval(union_class& exp);
+
 
     /*-------------------------------- Exp Handlers ------------------------------------*/
 
@@ -126,11 +131,11 @@ public:
 
             /*----------------------- Boolean Handlers -------------------*/
     union_class handle_not(union_class& exp);
-    union_class handle_or(union_class& exp_1, std::string or_label, union_class& exp_2);
-    union_class handle_and(union_class& exp_1, std::string or_label, union_class& exp_2);
+    union_class handle_or(union_class& exp_1, union_class& exp_2);
+    union_class handle_and(union_class& exp_1, union_class& exp_2);
 
     //Add branch to exp and generate label after br and return the label
-    std::string add_br_and_label(union_class& exp);
+    void add_br_and_label(union_class& exp);
 
     /*------------------------------ Function Handlers ---------------------------------*/
     void add_call_arg(union_class& exp);
