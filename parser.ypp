@@ -28,8 +28,8 @@
     %left AND
     %left EQUALOP
     %nonassoc RELOP 
-    %left ADD,SUB
-    %left MULT,DIV
+    %left ADD SUB
+    %left MULT DIV
 	%right NOT IF
     %left LPAREN RPAREN LBRACE RBRACE
     %nonassoc ELSE
@@ -45,12 +45,12 @@
     | FuncDecl Funcs {}
     ;
 
-    FuncDecl: MFuncDecl LBRACE Statements RBRACE {handle_func_end($1.type);}
+    FuncDecl: MFuncDecl LBRACE Statements RBRACE {comp.handle_func_end($1.type);}
     ;
 
     MFuncDecl: RetType ID LPAREN Formals RPAREN 
     {
-        handle_func_decl($1.type,$2.data);
+        comp.handle_func_decl($1.type,$2.data);
         $$.type = $1.type;
     }
     ;
@@ -75,7 +75,7 @@
     ;
 
     Statements: Statement {$$ = $1;}
-    | Statements Statement {$$ = comp.merge_unions($1,$2);}
+    | Statements Statement {$$ = comp.merge_lists($1,$2);}
     ;
 
     Statement: LBRACE {comp.openScope();} Statements RBRACE {comp.closeScope(); $$ = $3;}
@@ -93,8 +93,8 @@
         comp.handle_assign($1.data,$3);
         }
     | Call SC {}
-    | RETURN SC {checkRetType("VOID");}
-    | RETURN Exp SC {checkRetType($2.type);}
+    | RETURN SC {comp.handle_return();}
+    | RETURN Exp SC {comp.handle_return($2);}
     | IF LPAREN MExp RPAREN  Statement {$$ = comp.end_if($3,$5);}
     | IF LPAREN MExp RPAREN  Statement MElse Statement {$$ = comp.end_else($3,$5,$6,$7);}
     | MWhile LPAREN MExp RPAREN Statement {comp.end_while($3,$5);}
@@ -131,33 +131,33 @@
     Exp: LPAREN Exp RPAREN {$$ = $2;}
     | Exp ADD Exp  
         {
-        $$.type = comp.handle_add($1,$3);
+        $$ = comp.handle_add($1,$3);
         }
     | Exp SUB Exp  
         {
-        $$.type = comp.handle_sub($1,$3);
+        $$ = comp.handle_sub($1,$3);
         }
     | Exp MULT Exp  
         {
-        $$.type = comp.handle_mul($1,$3);
+        $$ = comp.handle_mul($1,$3);
         }
     | Exp DIV Exp  
         {
-        $$.type = comp.handle_div($1,$3);
+        $$ = comp.handle_div($1,$3);
         }
     | ID
         {
         $$ = comp.handle_var($1.data);
         }
     | Call {$$ = $1;}
-    | NUM {$$ = comp.handle_literal($1.data,"INT")}
-    | NUM B {$$ = comp.handle_literal($1.data,"BYTE")}
+    | NUM {$$ = comp.handle_literal($1.data,"INT");}
+    | NUM B {$$ = comp.handle_literal($1.data,"BYTE");}
     | STRING {$$ = comp.handle_string($1.data);}
     | TRUE {$$.data = "1"; $$.type = "BOOL"; $$.is_literal = true;}
     | FALSE {$$.data = "0"; $$.type = "BOOL"; $$.is_literal = true;}
     | NOT Exp   
         {
-        $$.type = comp.handle_not($2);
+        $$ = comp.handle_not($2);
         }
     | Exp AND {$$.label = comp.add_br_and_label($1);} Exp {$$ = comp.handle_and($1,$$.label,$4);}   
     | Exp OR {$$.label = comp.add_br_and_label($1);} Exp {$$ = comp.handle_or($1,$$.label,$4);}
@@ -171,7 +171,7 @@
         }
     | LPAREN Type RPAREN Exp 
         {
-        $$ = comp.handle_cast($1.type,$4)
+        $$ = comp.handle_cast($1.type,$4);
         } 
     ;
 
@@ -183,8 +183,7 @@
     int main()
     {
         int parse_ret = yyparse();
-        comp.printGlobalBuffer();
-        comp.printCodeBuffer();
+        comp.printBuffers();
         return parse_ret;
     }
 

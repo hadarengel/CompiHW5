@@ -27,7 +27,7 @@ class Llvm_compiler
 {
 private:
     /* data */
-    static CodeBuffer& code_bp;
+    CodeBuffer& code_bp;
     Sym_table symbol_table;
 
     unsigned int regs_counter = 0;
@@ -60,10 +60,10 @@ private:
 
 public:
     Llvm_compiler();
-    ~Llvm_compiler();
+    ~Llvm_compiler() = default;
 
     union_class merge_lists(union_class& uni_1, union_class& uni_2);
-
+    void printBuffers();
     /*------------------------------Statements Handlers-----------------------------------*/
     void openScope();
     void closeScope();
@@ -75,6 +75,8 @@ public:
     //Generate code for assigning assign_exp data in dest_id variable
     void handle_assign(std::string dest_id, union_class& assign_exp);
     
+    void handle_return();
+    void handle_return(union_class& exp);
     
     union_class begin_else();
     //Backpatch exp truelist to the next block label and closes the if scope, return states nextlist
@@ -112,7 +114,7 @@ public:
     union_class handle_relop_equalop(union_class& exp_1,std::string op, union_class& exp_2); 
 
     // Handle literals
-    union_class handle_literal(union_class& exp, std::string type);
+    union_class handle_literal(std::string data,const std::string type);
 
     // Handle casting
     union_class handle_cast(std::string cast_type, union_class& exp);

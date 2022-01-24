@@ -7,8 +7,7 @@ extern int yylineno;
 
 /*----------- Public Functions -----------*/
 
-Llvm_compiler::Llvm_compiler(){
-    
+Llvm_compiler::Llvm_compiler(): code_bp(CodeBuffer::instance()){
     code_bp.emitGlobal("declare i32 @printf(i8*, ...)");
     code_bp.emitGlobal("declare void @exit(i32)");
     code_bp.emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
@@ -35,6 +34,10 @@ Llvm_compiler::Llvm_compiler(){
     
 }
 
+void Llvm_compiler::printBuffers(){
+    code_bp.printGlobalBuffer();
+    code_bp.printCodeBuffer();
+}
 
 
 void Llvm_compiler::openScope(){
@@ -104,6 +107,20 @@ void Llvm_compiler::handle_assign(std::string dest_id, union_class& assign_exp){
     }
     std::string code = "store i32 " + assign_data + " , i32* " + symbol_table.getReg(dest_id);
     code_bp.emit(code);
+}
+
+void Llvm_compiler::handle_return(){
+    symbol_table.checkRetType("VOID");
+    code_bp.emit("ret void");
+}
+
+void Llvm_compiler::handle_return(union_class& exp){
+    symbol_table.checkRetType(exp.type);
+    std::string ret_data = exp.data;
+    if(!exp.is_literal && exp.type == "BOOL"){
+        ret_data = assign_bool(exp);
+    }
+    std::string code = "ret " + typeSize(exp.type) + " " + ret_data;
 }
 
 union_class Llvm_compiler::begin_else(){
@@ -358,13 +375,13 @@ union_class Llvm_compiler::handle_relop_equalop(union_class& exp_1,std::string o
     return res_exp;
 }
 
-union_class Llvm_compiler::handle_literal(union_class& exp, std::string type){
-    int value = atoi(exp.data.c_str());
+union_class Llvm_compiler::handle_literal(std::string data, std::string type){
+    int value = atoi(data.c_str());
     if(type == "BYTE"){
         symbol_table.checkOverFlowByte(value);    
     }
     union_class res_exp;
-    res_exp.data = exp.data;
+    res_exp.data = data;
     res_exp.is_literal = true;
     res_exp.type = type;
     return res_exp;
@@ -478,6 +495,9 @@ void Llvm_compiler::handle_func_decl(std::string ret_type,std::string func_id){
     }
     symbol_table.updateFuncParams(func_id,params_types);
     std::string code = "define " + typeSize(ret_type) + " @" + func_id + "(" + args_code + ") {";
+    code_bp.emit(code);
+    stack_ptr_reg = generate_reg() + "_stack_ptr_" + func_id;
+    code = stack_ptr_reg + " = alloca i32, i32 50";
     code_bp.emit(code);
 }
 

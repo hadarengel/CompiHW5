@@ -73,13 +73,13 @@ class Sym_table::scope // class for scope properties
 
 
 // Initialize the parser global data and add print and printi functions
-Sym_table::Sym_table(bool print_copes_t = false) { 
+Sym_table::Sym_table(bool print_scopes_t){ 
 	stack_scope = vector<scope>();
 	symbol_table = unordered_map<string, sType*>();
     global_offset = BASE__GLOBAL_OFFSET;
     is_main_exist = false;
 
-	print_scopes = print_scopes;
+	print_scopes = print_scopes_t;
 
     openScope(); //open global scope
 	
@@ -172,7 +172,7 @@ void Sym_table::updateFuncParams(const std::string& func_id, const vector<std::s
 }
 
 // Insert variable to symbol table and current scope
-void Sym_table::addVar(const string& name, const string& type, bool is_const,bool is_literal = false) {
+void Sym_table::addVar(const string& name, const string& type, bool is_const,bool is_literal) {
 	checkNameAvailable(name);
     varType* sym_ptr = new varType(name, type, is_literal ? global_offset : global_offset++, is_const , is_literal);
     symbol_table[name] = sym_ptr;
