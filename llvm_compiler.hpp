@@ -6,6 +6,7 @@
 
 #include "bp.hpp"
 #include "sym_table.hpp"
+#include "hw3_output.hpp"
 
 class union_class{
 	public:

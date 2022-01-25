@@ -66,17 +66,17 @@ void Llvm_compiler::handle_var_decl(bool is_const, std::string& type, std::strin
     symbol_table.checkValidAssign(type,assign_exp.type);
     
     if(is_const && assign_exp.is_literal){
-        symbol_table.addVar(name,type,is_const,true);
-        symbol_table.updateReg(name,assign_exp.data);
+        symbol_table.addVar(name,type,is_const,true);// true for literal save
+        symbol_table.updateReg(name,assign_exp.data);// update the literal value on the ptr register for later uses(no need reg)
     }
     else{
         std::string assign_data = assign_exp.data;
         std::string assign_type = typeSize(assign_exp.type);
         if(assign_type != "i32" && !assign_exp.is_literal){
             if(assign_type == "i1"){
-                assign_data = assign_bool(assign_exp);
+                assign_data = assign_bool(assign_exp); //generate phi labeling for bool expression
             }
-            assign_data = zext(assign_data,assign_type,"i32");
+            assign_data = zext(assign_data,assign_type,"i32");//extend data reg to i32
         }
         symbol_table.addVar(name,type,is_const,false);
         std::string reg_ptr = generate_reg() + "_address_to_" + name;
@@ -645,7 +645,7 @@ std::string Llvm_compiler::zext(std::string reg , std::string cur_size , std::st
 
 
 std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
-    //int backpatch_check =  code_bp.emit("br i1 " + bool_exp.data +", label @, label @");
+    //int backpatch_check =  code_bp.emit("br i1 " + bool_exp.data +", label @, label @"); (generated on expression)
     std::string bool_reg = generate_reg();
     std::string true_label = bool_exp.label;
     int backpatch_for_true =  code_bp.emit("br label @");
@@ -655,7 +655,7 @@ std::string Llvm_compiler::assign_bool(union_class& bool_exp) {
     string phi_label = code_bp.genLabel();
     code_bp.emit(bool_reg + " = phi i1 [  1, %" + true_label + "], [  0, %" + false_label + "]");
 
-   // bool_exp.truelist = code_bp.merge(bool_exp.truelist,code_bp.makelist({backpatch_check,FIRST}));
+   // bool_exp.truelist = code_bp.merge(bool_exp.truelist,code_bp.makelist({backpatch_check,FIRST})); 
     //bool_exp.falselist = code_bp.merge(bool_exp.falselist,code_bp.makelist({backpatch_check,SECOND}));
     code_bp.bpatch(bool_exp.truelist, true_label);
     code_bp.bpatch(bool_exp.falselist, false_label);

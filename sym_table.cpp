@@ -1,4 +1,3 @@
-#include "hw5_output.hpp"
 #include "sym_table.hpp"
 
 using namespace std;
